@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package exchange;
+
+import "google/protobuf/timestamp.proto";
+
+enum TradingPair {
+  TRADING_PAIR_UNKNOWN = 0;
+  BTC_USD = 1;
+  BTC_THB = 2;
+}
+
+message Order {
+  enum Type {
+	TYPE_UNKNOWN = 0;
+	MARKET = 1;
+	LIMIT = 2;
+	CANCEL = 3;
+  }
+  enum Position {
+	POSITION_UNKNOWN = 0;
+	BID = 1;
+	ASK = 2;
+  }
+  string account_id = 1;
+  google.protobuf.Timestamp time = 2;
+  TradingPair trading_pair = 3;
+  Type type = 4;
+  Position position = 5;
+  double value = 6;
+}
