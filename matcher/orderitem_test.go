@@ -1,4 +1,4 @@
-package orderitem
+package matcher
 
 import (
 	"testing"

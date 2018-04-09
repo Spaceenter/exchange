@@ -10,7 +10,7 @@ enum TradingPair {
   BTC_THB = 2;
 }
 
-message Order {
+message OrderItem {
   enum Type {
 	TYPE_UNKNOWN = 0;
 	MARKET = 1;
@@ -22,9 +22,8 @@ message Order {
 	BID = 1;
 	ASK = 2;
   }
-  string account_id = 1;
-  google.protobuf.Timestamp time = 2;
-  TradingPair trading_pair = 3;
+  string order_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
   Type type = 4;
   Position position = 5;
   double value = 6;
