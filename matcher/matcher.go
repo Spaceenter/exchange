@@ -24,6 +24,7 @@ func New(tradingPair pb.TradingPair) *Matcher {
 }
 
 func (m *Matcher) SubmitOrder(orderItem pb.OrderItem) error {
+	var tree *btree.BTree
 	var item btree.Item
 	timestamp, err := ptypes.Timestamp(orderItem.Timestamp)
 	if err != nil {
@@ -31,12 +32,14 @@ func (m *Matcher) SubmitOrder(orderItem pb.OrderItem) error {
 	}
 	switch orderItem.Position {
 	case pb.OrderItem_ASK:
+		tree = askTree
 		item = askItem{
 			orderId:   orderItem.OrderId,
 			timestamp: timestamp,
 			value:     orderItem.Value,
 		}
 	case pb.OrderItem_BID:
+		tree = bidTree
 		item = bidItem{
 			orderId:   orderItem.OrderId,
 			timestamp: timestamp,
@@ -48,11 +51,11 @@ func (m *Matcher) SubmitOrder(orderItem pb.OrderItem) error {
 
 	switch orderItem.Type {
 	case pb.OrderItem_MARKET:
-		m.processMarketOrder(item)
+		m.processMarketOrder(tree, item, orderItem.Position)
 	case pb.OrderItem_LIMIT:
-		m.processLimitOrder(item)
+		m.processLimitOrder(tree, item, orderItem.Position)
 	case pb.OrderItem_CANCEL:
-		m.processCancelOrder(item)
+		m.processCancelOrder(tree, item, orderItem.Position)
 	default:
 		return errors.New("unknown OrderItem_Type")
 	}
@@ -60,14 +63,17 @@ func (m *Matcher) SubmitOrder(orderItem pb.OrderItem) error {
 	return nil
 }
 
-func (m *Matcher) processMarketOrder(item btree.Item) error {
+func (m *Matcher) processMarketOrder(tree *btree.BTree, item btree.Item,
+	position pb.OrderItem_Position) error {
 	return nil
 }
 
-func (m *Matcher) processLimitOrder(item btree.Item) error {
+func (m *Matcher) processLimitOrder(tree *btree.BTree, item btree.Item,
+	position pb.OrderItem_Position) error {
 	return nil
 }
 
-func (m *Matcher) processCancelOrder(item btree.Item) error {
+func (m *Matcher) processCancelOrder(tree *btree.BTree, item btree.Item,
+	position pb.OrderItem_Position) error {
 	return nil
 }

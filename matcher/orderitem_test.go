@@ -11,8 +11,8 @@ func TestAskItemLess(t *testing.T) {
 		than askItem
 		want bool
 	}{
-		{askItem{"b", time.Unix(0, 8), 2.1}, false},
-		{askItem{"b", time.Unix(0, 8), 2.9}, true},
+		{askItem{"b", time.Unix(0, 8), 2.1}, true},
+		{askItem{"b", time.Unix(0, 8), 2.9}, false},
 		{askItem{"b", time.Unix(0, 8), 2.3}, false},
 		{askItem{"b", time.Unix(0, 12), 2.3}, true},
 	} {
