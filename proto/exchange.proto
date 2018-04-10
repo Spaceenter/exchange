@@ -26,5 +26,5 @@ message OrderItem {
   google.protobuf.Timestamp timestamp = 2;
   Type type = 4;
   Position position = 5;
-  double value = 6;
+  double price = 6;
 }
