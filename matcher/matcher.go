@@ -13,6 +13,7 @@ type Matcher struct {
 	tradingPair pb.TradingPair
 	askTree     *btree.BTree
 	bidTree     *btree.BTree
+	// TODO: Add notification channel.
 }
 
 func New(tradingPair pb.TradingPair) *Matcher {
