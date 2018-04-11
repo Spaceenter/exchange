@@ -17,17 +17,11 @@ enum OrderType {
   CANCEL = 3;
 }
 
-enum Position {
-  POSITION_UNKNOWN = 0;
-  BID = 1;
-  ASK = 2;
-}
-
 message OrderInfo {
   string order_id = 1;
   google.protobuf.Timestamp timestamp = 2;
   OrderType type = 4;
-  Position position = 5;
+  bool is_ask = 5;
 }
 
 message Order {
