@@ -32,52 +32,53 @@ func (m *Matcher) SubmitOrder(orderItem pb.OrderItem) error {
 		return err
 	}
 	switch orderItem.Position {
-	case pb.OrderItem_ASK:
-		tree = askTree
-		otherTree = bidTree
+	case pb.Position_ASK:
+		tree = m.askTree
+		otherTree = m.bidTree
 		item = askItem{
 			orderId:   orderItem.OrderId,
 			timestamp: timestamp,
 			price:     orderItem.Price,
+			volume:    orderItem.Volume,
 		}
-	case pb.OrderItem_BID:
-		tree = bidTree
-		otherTree = askTree
+	case pb.Position_BID:
+		tree = m.bidTree
+		otherTree = m.askTree
 		item = bidItem{
 			orderId:   orderItem.OrderId,
 			timestamp: timestamp,
 			price:     orderItem.Price,
+			volume:    orderItem.Volume,
 		}
 	default:
-		return errors.New("unknown OrderItem_Position")
+		return errors.New("unknown Position")
 	}
 
 	switch orderItem.Type {
-	case pb.OrderItem_MARKET:
+	case pb.OrderType_MARKET:
 		m.processMarketOrder(otherTree, item, orderItem.Position)
-	case pb.OrderItem_LIMIT:
+	case pb.OrderType_LIMIT:
 		m.processLimitOrder(tree, otherTree, item, orderItem.Position)
-	case pb.OrderItem_CANCEL:
+	case pb.OrderType_CANCEL:
 		m.processCancelOrder(tree, item)
 	default:
-		return errors.New("unknown OrderItem_Type")
+		return errors.New("unknown OrderType")
 	}
 
 	return nil
 }
 
 func (m *Matcher) processMarketOrder(otherTree *btree.BTree, item btree.Item,
-	position pb.OrderItem_Position) error {
+	position pb.Position) error {
 	return nil
 }
 
 func (m *Matcher) processLimitOrder(tree, otherTree *btree.BTree, item btree.Item,
-	position pb.OrderItem_Position) error {
+	position pb.Position) error {
 	// Convert the limit order to market order if the order price is better than the best price of
 	// the other tree.
-	bestPriceOfOtherTree := otherTree.Max().Price
-	if (pb.OrderItem_ASK && item.Price < bestPriceOfOtherTree) ||
-		(pb.OrderItem_BID && item.Price > bestPriceOfOtherTree) {
+	if (position == pb.Position_ASK && item.(askItem).price < otherTree.Max().(bidItem).price) ||
+		(position == pb.Position_BID && item.(bidItem).price > otherTree.Max().(askItem).price) {
 		return m.processMarketOrder(otherTree, item, position)
 	}
 

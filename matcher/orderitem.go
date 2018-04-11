@@ -13,6 +13,7 @@ type askItem struct {
 	orderId   string
 	timestamp time.Time
 	price     float64
+	volume    float64
 }
 
 func (ai askItem) Less(than btree.Item) bool {
@@ -32,6 +33,7 @@ type bidItem struct {
 	orderId   string
 	timestamp time.Time
 	price     float64
+	volume    float64
 }
 
 func (bi bidItem) Less(than btree.Item) bool {
