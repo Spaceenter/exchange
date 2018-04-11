@@ -5,35 +5,24 @@ import (
 	"time"
 )
 
-func TestAskItemLess(t *testing.T) {
-	item := askItem{"a", time.Unix(0, 10), 2.3, 2}
+func TestOrderItemLess(t *testing.T) {
+	askItem := orderItem{"a", time.Unix(0, 10), true, 2.3, 2}
+	bidItem := orderItem{"b", time.Unix(0, 10), false, 2.3, 2}
 	for _, c := range []struct {
-		than askItem
+		item orderItem
+		than orderItem
 		want bool
 	}{
-		{askItem{"b", time.Unix(0, 8), 2.1, 2}, true},
-		{askItem{"b", time.Unix(0, 8), 2.9, 2}, false},
-		{askItem{"b", time.Unix(0, 8), 2.3, 2}, false},
-		{askItem{"b", time.Unix(0, 12), 2.3, 2}, true},
+		{askItem, orderItem{"c", time.Unix(0, 8), true, 2.1, 2}, true},
+		{askItem, orderItem{"c", time.Unix(0, 8), true, 2.9, 2}, false},
+		{askItem, orderItem{"c", time.Unix(0, 8), true, 2.3, 2}, false},
+		{askItem, orderItem{"c", time.Unix(0, 12), true, 2.3, 2}, true},
+		{bidItem, orderItem{"c", time.Unix(0, 8), false, 2.1, 2}, false},
+		{bidItem, orderItem{"c", time.Unix(0, 8), false, 2.9, 2}, true},
+		{bidItem, orderItem{"c", time.Unix(0, 8), false, 2.3, 2}, false},
+		{bidItem, orderItem{"c", time.Unix(0, 12), false, 2.3, 2}, true},
 	} {
-		if got := item.Less(c.than); got != c.want {
-			t.Errorf("Less(%v) = %t, want %t", c.than, got, c.want)
-		}
-	}
-}
-
-func TestBidItemLess(t *testing.T) {
-	item := bidItem{"a", time.Unix(0, 10), 2.3, 2}
-	for _, c := range []struct {
-		than bidItem
-		want bool
-	}{
-		{bidItem{"b", time.Unix(0, 8), 2.1, 2}, false},
-		{bidItem{"b", time.Unix(0, 8), 2.9, 2}, true},
-		{bidItem{"b", time.Unix(0, 8), 2.3, 2}, true},
-		{bidItem{"b", time.Unix(0, 12), 2.3, 2}, false},
-	} {
-		if got := item.Less(c.than); got != c.want {
+		if got := c.item.Less(c.than); got != c.want {
 			t.Errorf("Less(%v) = %t, want %t", c.than, got, c.want)
 		}
 	}
