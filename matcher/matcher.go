@@ -12,24 +12,26 @@ import (
 
 type Matcher struct {
 	tradingPair pb.TradingPair
-	askTree     *btree.BTree
-	bidTree     *btree.BTree
+	sellTree    *btree.BTree
+	buyTree     *btree.BTree
 }
 
 func New(tradingPair pb.TradingPair) *Matcher {
 	return &Matcher{
 		tradingPair: tradingPair,
-		askTree:     btree.New(2),
-		bidTree:     btree.New(2),
+		sellTree:    btree.New(2),
+		buyTree:     btree.New(2),
 	}
 }
 
+func (m *Matcher) OrderBook() {
+}
+
 // SubmitOrder submits an order, and gets corresponding trade and order book events.
-func (m *Matcher) SubmitOrder(order pb.Order) (tradeEvents []*pb.TradeEvent,
-	orderBookEvents []*pb.OrderBookEvent, err error) {
+func (m *Matcher) SubmitOrder(order pb.Order) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error) {
 	timestamp, err := ptypes.Timestamp(order.Timestamp)
 	if err != nil {
-		return
+		return nil, nil, err
 	}
 	item := orderItem{
 		orderId:   order.OrderId,
@@ -41,29 +43,29 @@ func (m *Matcher) SubmitOrder(order pb.Order) (tradeEvents []*pb.TradeEvent,
 
 	var tree, otherTree *btree.BTree
 	if order.IsSell {
-		tree = m.askTree
-		otherTree = m.bidTree
+		tree = m.sellTree
+		otherTree = m.buyTree
 	} else {
-		tree = m.bidTree
-		otherTree = m.askTree
+		tree = m.buyTree
+		otherTree = m.sellTree
 	}
 
 	switch order.Type {
 	case pb.Order_MARKET:
-		tradeEvents, orderBookEvents, err = m.processMarketOrder(tree, otherTree, item, order.Timestamp)
+		return m.processMarketOrder(tree, otherTree, item, order.Timestamp)
 	case pb.Order_LIMIT:
-		tradeEvents, orderBookEvents, err = m.processLimitOrder(tree, otherTree, item, order.Timestamp)
+		return m.processLimitOrder(tree, otherTree, item, order.Timestamp)
 	case pb.Order_CANCEL:
-		orderBookEvents, err = m.processCancelOrder(tree, item, order.Timestamp)
+		return m.processCancelOrder(tree, item, order.Timestamp)
 	default:
-		err = errors.New("SubmitOrder(): unknown OrderType")
+		return nil, nil, errors.New("SubmitOrder(): unknown OrderType")
 	}
-
-	return
 }
 
 func (m *Matcher) processMarketOrder(tree, otherTree *btree.BTree, item orderItem,
-	protoTimeNow *tspb.Timestamp) (tradeEvents []*pb.TradeEvent, orderBookEvents []*pb.OrderBookEvent, err error) {
+	timeNowProto *tspb.Timestamp) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error) {
+	tradeEvents := []*pb.TradeEvent{}
+	orderBookEvents := []*pb.OrderBookEvent{}
 	type volumeRecorder struct {
 		volume     float64
 		leftVolume float64
@@ -82,25 +84,25 @@ func (m *Matcher) processMarketOrder(tree, otherTree *btree.BTree, item orderIte
 			// Add residual volume of the limit order as a new limit order.
 			residualMaxItem := maxItem
 			residualMaxItem.volume -= matchedVolume
-			ts, os, err2 := m.processLimitOrder(otherTree, tree, residualMaxItem, protoTimeNow)
-			if err2 != nil {
-				err = err2
+			ts, os, err := m.processLimitOrder(otherTree, tree, residualMaxItem, timeNowProto)
+			if err != nil {
+				return nil, nil, err
 			}
 			tradeEvents = append(tradeEvents, ts...)
 			orderBookEvents = append(orderBookEvents, os...)
 		}
 
 		// Cancel matched limit order.
-		os, err2 := m.processCancelOrder(otherTree, maxItem, protoTimeNow)
-		if err2 != nil {
-			err = err2
+		_, os, err := m.processCancelOrder(otherTree, maxItem, timeNowProto)
+		if err != nil {
+			return nil, nil, err
 		}
 		orderBookEvents = append(orderBookEvents, os...)
 
 		// Trade event of the matched limit order.
 		tradeEvents = append(tradeEvents, &pb.TradeEvent{
 			OrderId:       maxItem.orderId,
-			Timestamp:     protoTimeNow,
+			Timestamp:     timeNowProto,
 			IsTaker:       false,
 			IsSell:        !item.isSell,
 			Price:         maxItem.price,
@@ -124,7 +126,7 @@ func (m *Matcher) processMarketOrder(tree, otherTree *btree.BTree, item orderIte
 	for price, volumeRecorder := range matchedMarketOrderMap {
 		tradeEvents = append(tradeEvents, &pb.TradeEvent{
 			OrderId:       item.orderId,
-			Timestamp:     protoTimeNow,
+			Timestamp:     timeNowProto,
 			IsTaker:       true,
 			IsSell:        item.isSell,
 			Price:         price,
@@ -133,25 +135,26 @@ func (m *Matcher) processMarketOrder(tree, otherTree *btree.BTree, item orderIte
 		})
 	}
 
-	return
+	return tradeEvents, orderBookEvents, nil
 }
 
 func (m *Matcher) processLimitOrder(tree, otherTree *btree.BTree, item orderItem,
-	protoTimeNow *tspb.Timestamp) (tradeEvents []*pb.TradeEvent, orderBookEvents []*pb.OrderBookEvent, err error) {
+	timeNowProto *tspb.Timestamp) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error) {
 	// Convert the limit order to market order if the order price is equal to or better than the best
 	// price of the other tree.
 	bestPrice := otherTree.Max().(orderItem).price
 	if (item.price == bestPrice) || (item.isSell && item.price < bestPrice) {
-		tradeEvents, orderBookEvents, err = m.processMarketOrder(tree, otherTree, item, protoTimeNow)
+		return m.processMarketOrder(tree, otherTree, item, timeNowProto)
 	}
 
 	// Add the limit order to the order book.
+	orderBookEvents := []*pb.OrderBookEvent{}
 	if tree.ReplaceOrInsert(item) != nil {
-		err = errors.New("processLimitOrder(): limit order already exists")
+		return nil, nil, errors.New("processLimitOrder(): limit order already exists")
 	} else {
 		orderBookEvents = append(orderBookEvents, &pb.OrderBookEvent{
 			OrderId:   item.orderId,
-			Timestamp: protoTimeNow,
+			Timestamp: timeNowProto,
 			Type:      pb.OrderBookEvent_ADD,
 			IsSell:    item.isSell,
 			Price:     item.price,
@@ -159,22 +162,23 @@ func (m *Matcher) processLimitOrder(tree, otherTree *btree.BTree, item orderItem
 		})
 	}
 
-	return
+	return nil, orderBookEvents, nil
 }
 
 func (m *Matcher) processCancelOrder(tree *btree.BTree, item orderItem,
-	protoTimeNow *tspb.Timestamp) (orderBookEvents []*pb.OrderBookEvent, err error) {
+	timeNowProto *tspb.Timestamp) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error) {
+	orderBookEvents := []*pb.OrderBookEvent{}
 	if tree.Delete(item) == nil {
-		err = errors.New("processCancelOrder(): order cannot be canceled: not exist")
+		return nil, nil, errors.New("processCancelOrder(): order cannot be canceled: not exist")
 	} else {
 		orderBookEvents = append(orderBookEvents, &pb.OrderBookEvent{
 			OrderId:   item.orderId,
-			Timestamp: protoTimeNow,
+			Timestamp: timeNowProto,
 			Type:      pb.OrderBookEvent_REMOVE,
 			IsSell:    item.isSell,
 			Price:     item.price,
 			Volume:    item.volume,
 		})
 	}
-	return
+	return nil, orderBookEvents, nil
 }
