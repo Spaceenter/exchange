@@ -3,7 +3,6 @@ package matcher
 
 import (
 	"errors"
-	"time"
 
 	"github.com/golang/protobuf/ptypes"
 	tspb "github.com/golang/protobuf/ptypes/timestamp"
@@ -15,7 +14,6 @@ type Matcher struct {
 	tradingPair pb.TradingPair
 	askTree     *btree.BTree
 	bidTree     *btree.BTree
-	// TODO: Add notification channel.
 }
 
 func New(tradingPair pb.TradingPair) *Matcher {
@@ -26,10 +24,11 @@ func New(tradingPair pb.TradingPair) *Matcher {
 	}
 }
 
-func (m *Matcher) SubmitOrder(order pb.Order) error {
+func (m *Matcher) SubmitOrder(order pb.Order) (tradeEvents []*pb.TradeEvent,
+	orderBookEvents []*pb.OrderBookEvent, err error) {
 	timestamp, err := ptypes.Timestamp(order.Timestamp)
 	if err != nil {
-		return err
+		return
 	}
 	item := orderItem{
 		orderId:   order.OrderId,
@@ -50,23 +49,20 @@ func (m *Matcher) SubmitOrder(order pb.Order) error {
 
 	switch order.Type {
 	case pb.Order_MARKET:
-		return m.processMarketOrder(otherTree, item)
+		tradeEvents, orderBookEvents, err = m.processMarketOrder(tree, otherTree, item, order.Timestamp)
 	case pb.Order_LIMIT:
-		return m.processLimitOrder(tree, otherTree, item)
+		tradeEvents, orderBookEvents, err = m.processLimitOrder(tree, otherTree, item, order.Timestamp)
 	case pb.Order_CANCEL:
-		return m.processCancelOrder(tree, item)
+		orderBookEvents, err = m.processCancelOrder(tree, item, order.Timestamp)
 	default:
-		return errors.New("SubmitOrder(): unknown OrderType")
+		err = errors.New("SubmitOrder(): unknown OrderType")
 	}
 
-	return nil
+	return
 }
 
-func (m *Matcher) processMarketOrder(otherTree *btree.BTree, item orderItem) error {
-	protoTimeNow, err := ptypes.TimestampProto(time.Now())
-	if err != nil {
-		return err
-	}
+func (m *Matcher) processMarketOrder(tree, otherTree *btree.BTree, item orderItem,
+	protoTimeNow *tspb.Timestamp) (tradeEvents []*pb.TradeEvent, orderBookEvents []*pb.OrderBookEvent, err error) {
 	type volumeRecorder struct {
 		volume     float64
 		leftVolume float64
@@ -79,29 +75,28 @@ func (m *Matcher) processMarketOrder(otherTree *btree.BTree, item orderItem) err
 
 		if item.volume >= maxItem.volume {
 			matchedVolume = maxItem.volume
-
-			if otherTree.Delete(maxItem) == nil {
-				return errors.New("processMarketOrder(): cannot delete limit order")
-			}
-			// TODO: send the matchedLimitOrder to notification channel.
 		} else {
 			matchedVolume = item.volume
 
-			_ = tradeEvent(maxItem, protoTimeNow, !item.isSell, false, matchedVolume)
-			// TODO: send the matchedLimitOrder to notification channel.
-			if otherTree.Delete(maxItem) == nil {
-				return errors.New("processMarketOrder(): cannot delete limit order")
+			// Add residual volume of the limit order as a new limit order.
+			residualMaxItem := maxItem
+			residualMaxItem.volume -= matchedVolume
+			ts, os, err2 := m.processLimitOrder(otherTree, tree, residualMaxItem, protoTimeNow)
+			if err2 != nil {
+				err = err2
 			}
-			// TODO: send cancel order (followed by adding remaining balance) to notification channel.
-			maxItem.volume -= matchedVolume
-			if otherTree.ReplaceOrInsert(maxItem) != nil {
-				return errors.New("processMarketOrder(): limit order already exists")
-			} else {
-				// TODO: Send limit order event to channel.
-			}
+			tradeEvents = append(tradeEvents, ts...)
+			orderBookEvents = append(orderBookEvents, os...)
 		}
 
-		_ = &pb.TradeEvent{
+		// Cancel matched limit order.
+		os, err2 := m.processCancelOrder(otherTree, maxItem, protoTimeNow)
+		if err2 != nil {
+			err = err2
+		}
+		orderBookEvents = append(orderBookEvents, os...)
+
+		tradeEvents = append(tradeEvents, &pb.TradeEvent{
 			OrderId:       maxItem.orderId,
 			Timestamp:     protoTimeNow,
 			IsTaker:       false,
@@ -109,7 +104,7 @@ func (m *Matcher) processMarketOrder(otherTree *btree.BTree, item orderItem) err
 			Price:         maxItem.price,
 			MatchedVolume: matchedVolume,
 			LeftVolume:    maxItem.volume - matchedVolume,
-		}
+		})
 
 		item.volume -= matchedVolume
 		accumulatedVolume := matchedVolume
@@ -124,7 +119,7 @@ func (m *Matcher) processMarketOrder(otherTree *btree.BTree, item orderItem) err
 
 	// TODO: Send matched market order to notification channel.
 	for price, volumeRecorder := range matchedMarketOrderMap {
-		_ = &pb.TradeEvent{
+		tradeEvents = append(tradeEvents, &pb.TradeEvent{
 			OrderId:       item.orderId,
 			Timestamp:     protoTimeNow,
 			IsTaker:       true,
@@ -132,48 +127,51 @@ func (m *Matcher) processMarketOrder(otherTree *btree.BTree, item orderItem) err
 			Price:         price,
 			MatchedVolume: volumeRecorder.volume,
 			LeftVolume:    volumeRecorder.leftVolume,
-		}
+		})
 	}
 
-	return nil
+	return
 }
 
-func (m *Matcher) processLimitOrder(tree, otherTree *btree.BTree, item orderItem) error {
+func (m *Matcher) processLimitOrder(tree, otherTree *btree.BTree, item orderItem,
+	protoTimeNow *tspb.Timestamp) (tradeEvents []*pb.TradeEvent, orderBookEvents []*pb.OrderBookEvent, err error) {
 	// Convert the limit order to market order if the order price is equal to or better than the best
 	// price of the other tree.
 	bestPrice := otherTree.Max().(orderItem).price
 	if (item.price == bestPrice) || (item.isSell && item.price < bestPrice) {
-		return m.processMarketOrder(otherTree, item)
+		tradeEvents, orderBookEvents, err = m.processMarketOrder(tree, otherTree, item, protoTimeNow)
 	}
 
 	// Add the limit order to the order book.
 	if tree.ReplaceOrInsert(item) != nil {
-		return errors.New("processLimitOrder(): limit order already exists")
+		err = errors.New("processLimitOrder(): limit order already exists")
 	} else {
-		// TODO: Send limit order event to channel.
+		orderBookEvents = append(orderBookEvents, &pb.OrderBookEvent{
+			OrderId:   item.orderId,
+			Timestamp: protoTimeNow,
+			Type:      pb.OrderBookEvent_ADD,
+			IsSell:    item.isSell,
+			Price:     item.price,
+			Volume:    item.volume,
+		})
 	}
 
-	return nil
+	return
 }
 
-func (m *Matcher) processCancelOrder(tree *btree.BTree, item btree.Item) error {
+func (m *Matcher) processCancelOrder(tree *btree.BTree, item orderItem,
+	protoTimeNow *tspb.Timestamp) (orderBookEvents []*pb.OrderBookEvent, err error) {
 	if tree.Delete(item) == nil {
-		return errors.New("processCancelOrder(): order cannot be canceled: not exist")
+		err = errors.New("processCancelOrder(): order cannot be canceled: not exist")
 	} else {
-		// TODO: Send cancel order event to channel.
+		orderBookEvents = append(orderBookEvents, &pb.OrderBookEvent{
+			OrderId:   item.orderId,
+			Timestamp: protoTimeNow,
+			Type:      pb.OrderBookEvent_REMOVE,
+			IsSell:    item.isSell,
+			Price:     item.price,
+			Volume:    item.volume,
+		})
 	}
-	return nil
-}
-
-func tradeEvent(item orderItem, timestamp *tspb.Timestamp, isSell, isTaker bool,
-	matchedVolume float64) *pb.TradeEvent {
-	return &pb.TradeEvent{
-		OrderId:       item.orderId,
-		Timestamp:     timestamp,
-		IsTaker:       isTaker,
-		IsSell:        isSell,
-		Price:         item.price,
-		MatchedVolume: matchedVolume,
-		LeftVolume:    item.volume - matchedVolume,
-	}
+	return
 }

@@ -43,7 +43,8 @@ message OrderBookEvent {
   }
   string order_id = 1;
   google.protobuf.Timestamp timestamp = 2;
-  bool is_sell = 3;
-  double price = 4;
-  double volume = 5;
+  Type type = 3;
+  bool is_sell = 4;
+  double price = 5;
+  double volume = 6;
 }
