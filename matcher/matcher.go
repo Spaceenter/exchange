@@ -24,7 +24,37 @@ func New(tradingPair pb.TradingPair) *Matcher {
 	}
 }
 
-func (m *Matcher) OrderBook() {
+// OrderBook gets the orderbook.
+// This function should be called infrequently to ensure the performance of the matching engine.
+// A separate routine should be used for updating the orderbook by listening to OrderBookEvent.
+// This function should only be served as a periodical check point to ensure the correctness.
+func (m *Matcher) OrderBook() *pb.OrderBook {
+	orderBook := &pb.OrderBook{Pair: m.tradingPair}
+	for _, t := range []struct {
+		isSell bool
+		tree   *btree.BTree
+	}{
+		{true, m.sellTree},
+		{false, m.buyTree},
+	} {
+		orderTree := &pb.OrderTree{IsSell: t.isSell}
+		t.tree.Descend(btree.ItemIterator(func(i btree.Item) bool {
+			item := i.(orderItem)
+			timestampProto, err := ptypes.TimestampProto(item.timestamp)
+			if err != nil {
+				return false
+			}
+			orderTree.Items = append(orderTree.Items, &pb.OrderItem{
+				OrderId:   item.orderId,
+				Timestamp: timestampProto,
+				Price:     item.price,
+				Volume:    item.volume,
+			})
+			return true
+		}))
+		orderBook.Trees = append(orderBook.Trees, orderTree)
+	}
+	return nil
 }
 
 // SubmitOrder submits an order, and gets corresponding trade and order book events.

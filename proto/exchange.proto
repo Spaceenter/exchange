@@ -48,3 +48,20 @@ message OrderBookEvent {
   double price = 5;
   double volume = 6;
 }
+
+message OrderItem {
+  string order_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  double price = 3;
+  double volume = 4;
+}
+
+message OrderTree {
+  bool is_sell = 1;
+  repeated OrderItem items = 2;
+}
+
+message OrderBook {
+  TradingPair pair = 1;
+  repeated OrderTree trees = 2;
+}
