@@ -24,6 +24,7 @@ func New(tradingPair pb.TradingPair) *Matcher {
 	}
 }
 
+// SubmitOrder submits an order, and gets corresponding trade and order book events.
 func (m *Matcher) SubmitOrder(order pb.Order) (tradeEvents []*pb.TradeEvent,
 	orderBookEvents []*pb.OrderBookEvent, err error) {
 	timestamp, err := ptypes.Timestamp(order.Timestamp)
@@ -96,6 +97,7 @@ func (m *Matcher) processMarketOrder(tree, otherTree *btree.BTree, item orderIte
 		}
 		orderBookEvents = append(orderBookEvents, os...)
 
+		// Trade event of the matched limit order.
 		tradeEvents = append(tradeEvents, &pb.TradeEvent{
 			OrderId:       maxItem.orderId,
 			Timestamp:     protoTimeNow,
@@ -106,6 +108,7 @@ func (m *Matcher) processMarketOrder(tree, otherTree *btree.BTree, item orderIte
 			LeftVolume:    maxItem.volume - matchedVolume,
 		})
 
+		// Aggregate filled market order price and volume information.
 		item.volume -= matchedVolume
 		accumulatedVolume := matchedVolume
 		if _, ok := matchedMarketOrderMap[maxItem.price]; ok {
@@ -117,7 +120,7 @@ func (m *Matcher) processMarketOrder(tree, otherTree *btree.BTree, item orderIte
 		}
 	}
 
-	// TODO: Send matched market order to notification channel.
+	// Trade events of the matched market order.
 	for price, volumeRecorder := range matchedMarketOrderMap {
 		tradeEvents = append(tradeEvents, &pb.TradeEvent{
 			OrderId:       item.orderId,
