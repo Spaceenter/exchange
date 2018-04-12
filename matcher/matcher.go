@@ -27,20 +27,20 @@ func New(tradingPair pb.TradingPair) *Matcher {
 }
 
 func (m *Matcher) SubmitOrder(order pb.Order) error {
-	timestamp, err := ptypes.Timestamp(order.OrderInfo.Timestamp)
+	timestamp, err := ptypes.Timestamp(order.Timestamp)
 	if err != nil {
 		return err
 	}
 	item := orderItem{
-		orderId:   order.OrderInfo.OrderId,
+		orderId:   order.OrderId,
 		timestamp: timestamp,
-		isAsk:     order.OrderInfo.IsAsk,
+		isSell:    order.IsSell,
 		price:     order.Price,
 		volume:    order.Volume,
 	}
 
 	var tree, otherTree *btree.BTree
-	if order.OrderInfo.IsAsk {
+	if order.IsSell {
 		tree = m.askTree
 		otherTree = m.bidTree
 	} else {
@@ -48,12 +48,12 @@ func (m *Matcher) SubmitOrder(order pb.Order) error {
 		otherTree = m.askTree
 	}
 
-	switch order.OrderInfo.Type {
-	case pb.OrderType_MARKET:
+	switch order.Type {
+	case pb.Order_MARKET:
 		return m.processMarketOrder(otherTree, item)
-	case pb.OrderType_LIMIT:
+	case pb.Order_LIMIT:
 		return m.processLimitOrder(tree, otherTree, item)
-	case pb.OrderType_CANCEL:
+	case pb.Order_CANCEL:
 		return m.processCancelOrder(tree, item)
 	default:
 		return errors.New("SubmitOrder(): unknown OrderType")
@@ -71,7 +71,7 @@ func (m *Matcher) processMarketOrder(otherTree *btree.BTree, item orderItem) err
 		volume     float64
 		leftVolume float64
 	}
-	var matchedMarketOrderMap map[float64]volumeRecorder
+	matchedMarketOrderMap := map[float64]volumeRecorder{}
 
 	for item.volume > 0 && otherTree.Len() > 0 {
 		maxItem := otherTree.Max().(orderItem)
@@ -80,19 +80,19 @@ func (m *Matcher) processMarketOrder(otherTree *btree.BTree, item orderItem) err
 		if item.volume >= maxItem.volume {
 			matchedVolume = maxItem.volume
 
-			_ = matchedLimitOrder(maxItem, protoTimeNow, !item.isAsk, matchedVolume)
 			if otherTree.Delete(maxItem) == nil {
 				return errors.New("processMarketOrder(): cannot delete limit order")
 			}
 			// TODO: send the matchedLimitOrder to notification channel.
-		} else { //item.volume < maxItem.volume
+		} else {
 			matchedVolume = item.volume
 
-			_ = matchedLimitOrder(maxItem, protoTimeNow, !item.isAsk, matchedVolume)
+			_ = tradeEvent(maxItem, protoTimeNow, !item.isSell, false, matchedVolume)
+			// TODO: send the matchedLimitOrder to notification channel.
 			if otherTree.Delete(maxItem) == nil {
 				return errors.New("processMarketOrder(): cannot delete limit order")
 			}
-			// TODO: send the matchedLimitOrder to notification channel.
+			// TODO: send cancel order (followed by adding remaining balance) to notification channel.
 			maxItem.volume -= matchedVolume
 			if otherTree.ReplaceOrInsert(maxItem) != nil {
 				return errors.New("processMarketOrder(): limit order already exists")
@@ -101,30 +101,35 @@ func (m *Matcher) processMarketOrder(otherTree *btree.BTree, item orderItem) err
 			}
 		}
 
+		_ = &pb.TradeEvent{
+			OrderId:       maxItem.orderId,
+			Timestamp:     protoTimeNow,
+			IsTaker:       false,
+			IsSell:        !item.isSell,
+			Price:         maxItem.price,
+			MatchedVolume: matchedVolume,
+			LeftVolume:    maxItem.volume - matchedVolume,
+		}
+
 		item.volume -= matchedVolume
+		accumulatedVolume := matchedVolume
 		if _, ok := matchedMarketOrderMap[maxItem.price]; ok {
-			vr := matchedMarketOrderMap[maxItem.price]
-			vr.volume += matchedVolume
-			vr.leftVolume = item.volume
-			matchedMarketOrderMap[maxItem.price] = vr
-		} else {
-			matchedMarketOrderMap[maxItem.price] = volumeRecorder{
-				volume:     matchedVolume,
-				leftVolume: item.volume,
-			}
+			accumulatedVolume = matchedVolume + matchedMarketOrderMap[maxItem.price].volume
+		}
+		matchedMarketOrderMap[maxItem.price] = volumeRecorder{
+			volume:     accumulatedVolume,
+			leftVolume: item.volume,
 		}
 	}
 
 	// TODO: Send matched market order to notification channel.
 	for price, volumeRecorder := range matchedMarketOrderMap {
-		_ = &pb.MatchedOrder{
-			OrderInfo: &pb.OrderInfo{
-				OrderId:   item.orderId,
-				Timestamp: protoTimeNow,
-				Type:      pb.OrderType_MARKET,
-				IsAsk:     item.isAsk,
-			},
-			MatchedPrice:  price,
+		_ = &pb.TradeEvent{
+			OrderId:       item.orderId,
+			Timestamp:     protoTimeNow,
+			IsTaker:       true,
+			IsSell:        item.isSell,
+			Price:         price,
 			MatchedVolume: volumeRecorder.volume,
 			LeftVolume:    volumeRecorder.leftVolume,
 		}
@@ -137,7 +142,7 @@ func (m *Matcher) processLimitOrder(tree, otherTree *btree.BTree, item orderItem
 	// Convert the limit order to market order if the order price is equal to or better than the best
 	// price of the other tree.
 	bestPrice := otherTree.Max().(orderItem).price
-	if (item.price == bestPrice) || (item.isAsk && item.price < bestPrice) {
+	if (item.price == bestPrice) || (item.isSell && item.price < bestPrice) {
 		return m.processMarketOrder(otherTree, item)
 	}
 
@@ -160,16 +165,14 @@ func (m *Matcher) processCancelOrder(tree *btree.BTree, item btree.Item) error {
 	return nil
 }
 
-func matchedLimitOrder(item orderItem, timestamp *tspb.Timestamp, isAsk bool,
-	matchedVolume float64) *pb.MatchedOrder {
-	return &pb.MatchedOrder{
-		OrderInfo: &pb.OrderInfo{
-			OrderId:   item.orderId,
-			Timestamp: timestamp,
-			Type:      pb.OrderType_LIMIT,
-			IsAsk:     isAsk,
-		},
-		MatchedPrice:  item.price,
+func tradeEvent(item orderItem, timestamp *tspb.Timestamp, isSell, isTaker bool,
+	matchedVolume float64) *pb.TradeEvent {
+	return &pb.TradeEvent{
+		OrderId:       item.orderId,
+		Timestamp:     timestamp,
+		IsTaker:       isTaker,
+		IsSell:        isSell,
+		Price:         item.price,
 		MatchedVolume: matchedVolume,
 		LeftVolume:    item.volume - matchedVolume,
 	}

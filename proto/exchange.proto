@@ -10,29 +10,40 @@ enum TradingPair {
   BTC_THB = 2;
 }
 
-enum OrderType {
-  TYPE_UNKNOWN = 0;
-  MARKET = 1;
-  LIMIT = 2;
-  CANCEL = 3;
-}
-
-message OrderInfo {
+message Order {
+  enum Type {
+    TYPE_UNKNOWN = 0;
+    MARKET = 1;
+    LIMIT = 2;
+    CANCEL = 3;
+  }
   string order_id = 1;
   google.protobuf.Timestamp timestamp = 2;
-  OrderType type = 4;
-  bool is_ask = 5;
+  Type type = 3;
+  bool is_sell = 4;
+  double price = 5;
+  double volume = 6;
 }
 
-message Order {
-  OrderInfo order_info = 1;
-  double price = 2;
-  double volume = 3;
+message TradeEvent {
+  string order_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  bool is_taker = 3;
+  bool is_sell = 4;
+  double price = 5;
+  double matched_volume = 6;
+  double left_volume = 7;
 }
 
-message MatchedOrder {
-  OrderInfo order_info = 1;
-  double matched_price = 2;
-  double matched_volume = 3;
-  double left_volume = 4;
+message OrderBookEvent {
+  enum Type {
+	TYPE_UNKNOWN = 0;
+	ADD = 1;
+	REMOVE = 2;
+  }
+  string order_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  bool is_sell = 3;
+  double price = 4;
+  double volume = 5;
 }

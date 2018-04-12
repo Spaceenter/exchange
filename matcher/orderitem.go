@@ -13,7 +13,7 @@ import (
 type orderItem struct {
 	orderId   string
 	timestamp time.Time
-	isAsk     bool
+	isSell    bool
 	price     float64
 	volume    float64
 }
@@ -21,7 +21,7 @@ type orderItem struct {
 func (o orderItem) Less(than btree.Item) bool {
 	t := than.(orderItem)
 	if o.price != t.price {
-		return (o.price > t.price) == o.isAsk
+		return (o.price > t.price) == o.isSell
 	}
 	return o.timestamp.Before(t.timestamp)
 }
