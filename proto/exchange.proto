@@ -18,7 +18,7 @@ message Order {
     CANCEL = 3;
   }
   string order_id = 1;
-  google.protobuf.Timestamp timestamp = 2;
+  google.protobuf.Timestamp order_time = 2;
   Type type = 3;
   bool is_sell = 4;
   double price = 5;
@@ -51,7 +51,7 @@ message OrderBookEvent {
 
 message OrderItem {
   string order_id = 1;
-  google.protobuf.Timestamp timestamp = 2;
+  google.protobuf.Timestamp order_time = 2;
   double price = 3;
   double volume = 4;
 }
@@ -63,5 +63,6 @@ message OrderTree {
 
 message OrderBook {
   TradingPair pair = 1;
-  repeated OrderTree trees = 2;
+  google.protobuf.Timestamp snapshot_time = 2;
+  repeated OrderTree trees = 3;
 }

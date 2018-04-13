@@ -3,6 +3,7 @@ package matcher
 
 import (
 	"errors"
+	"time"
 
 	"github.com/golang/protobuf/ptypes"
 	tspb "github.com/golang/protobuf/ptypes/timestamp"
@@ -28,8 +29,15 @@ func New(tradingPair pb.TradingPair) *Matcher {
 // This function should be called infrequently to ensure the performance of the matching engine.
 // A separate routine should be used for updating the orderbook by listening to OrderBookEvent.
 // This function should only be served as a periodical check point to ensure the correctness.
-func (m *Matcher) OrderBook() *pb.OrderBook {
-	orderBook := &pb.OrderBook{Pair: m.tradingPair}
+func (m *Matcher) OrderBook(snapshotTime time.Time) (*pb.OrderBook, error) {
+	snapshotTimeProto, err := ptypes.TimestampProto(snapshotTime)
+	if err != nil {
+		return nil, err
+	}
+	orderBook := &pb.OrderBook{
+		Pair:         m.tradingPair,
+		SnapshotTime: snapshotTimeProto,
+	}
 	for _, t := range []struct {
 		isSell bool
 		tree   *btree.BTree
@@ -40,13 +48,13 @@ func (m *Matcher) OrderBook() *pb.OrderBook {
 		orderTree := &pb.OrderTree{IsSell: t.isSell}
 		t.tree.Descend(btree.ItemIterator(func(i btree.Item) bool {
 			item := i.(orderItem)
-			timestampProto, err := ptypes.TimestampProto(item.timestamp)
+			orderTimeProto, err := ptypes.TimestampProto(item.orderTime)
 			if err != nil {
 				return false
 			}
 			orderTree.Items = append(orderTree.Items, &pb.OrderItem{
 				OrderId:   item.orderId,
-				Timestamp: timestampProto,
+				OrderTime: orderTimeProto,
 				Price:     item.price,
 				Volume:    item.volume,
 			})
@@ -54,18 +62,18 @@ func (m *Matcher) OrderBook() *pb.OrderBook {
 		}))
 		orderBook.Trees = append(orderBook.Trees, orderTree)
 	}
-	return nil
+	return orderBook, nil
 }
 
 // SubmitOrder submits an order, and gets corresponding trade and order book events.
-func (m *Matcher) SubmitOrder(order pb.Order) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error) {
-	timestamp, err := ptypes.Timestamp(order.Timestamp)
+func (m *Matcher) SubmitOrder(order *pb.Order) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error) {
+	orderTime, err := ptypes.Timestamp(order.OrderTime)
 	if err != nil {
 		return nil, nil, err
 	}
 	item := orderItem{
 		orderId:   order.OrderId,
-		timestamp: timestamp,
+		orderTime: orderTime,
 		isSell:    order.IsSell,
 		price:     order.Price,
 		volume:    order.Volume,
@@ -82,18 +90,18 @@ func (m *Matcher) SubmitOrder(order pb.Order) ([]*pb.TradeEvent, []*pb.OrderBook
 
 	switch order.Type {
 	case pb.Order_MARKET:
-		return m.processMarketOrder(tree, otherTree, item, order.Timestamp)
+		return m.processMarketOrder(tree, otherTree, item, order.OrderTime)
 	case pb.Order_LIMIT:
-		return m.processLimitOrder(tree, otherTree, item, order.Timestamp)
+		return m.processLimitOrder(tree, otherTree, item, order.OrderTime)
 	case pb.Order_CANCEL:
-		return m.processCancelOrder(tree, item, order.Timestamp)
+		return m.processCancelOrder(tree, item, order.OrderTime)
 	default:
 		return nil, nil, errors.New("SubmitOrder(): unknown OrderType")
 	}
 }
 
 func (m *Matcher) processMarketOrder(tree, otherTree *btree.BTree, item orderItem,
-	timeNowProto *tspb.Timestamp) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error) {
+	orderTimeProto *tspb.Timestamp) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error) {
 	tradeEvents := []*pb.TradeEvent{}
 	orderBookEvents := []*pb.OrderBookEvent{}
 	type volumeRecorder struct {
@@ -114,7 +122,7 @@ func (m *Matcher) processMarketOrder(tree, otherTree *btree.BTree, item orderIte
 			// Add residual volume of the limit order as a new limit order.
 			residualMaxItem := maxItem
 			residualMaxItem.volume -= matchedVolume
-			ts, os, err := m.processLimitOrder(otherTree, tree, residualMaxItem, timeNowProto)
+			ts, os, err := m.processLimitOrder(otherTree, tree, residualMaxItem, orderTimeProto)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -123,7 +131,7 @@ func (m *Matcher) processMarketOrder(tree, otherTree *btree.BTree, item orderIte
 		}
 
 		// Cancel matched limit order.
-		_, os, err := m.processCancelOrder(otherTree, maxItem, timeNowProto)
+		_, os, err := m.processCancelOrder(otherTree, maxItem, orderTimeProto)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -132,7 +140,7 @@ func (m *Matcher) processMarketOrder(tree, otherTree *btree.BTree, item orderIte
 		// Trade event of the matched limit order.
 		tradeEvents = append(tradeEvents, &pb.TradeEvent{
 			OrderId:       maxItem.orderId,
-			Timestamp:     timeNowProto,
+			Timestamp:     orderTimeProto,
 			IsTaker:       false,
 			IsSell:        !item.isSell,
 			Price:         maxItem.price,
@@ -156,7 +164,7 @@ func (m *Matcher) processMarketOrder(tree, otherTree *btree.BTree, item orderIte
 	for price, volumeRecorder := range matchedMarketOrderMap {
 		tradeEvents = append(tradeEvents, &pb.TradeEvent{
 			OrderId:       item.orderId,
-			Timestamp:     timeNowProto,
+			Timestamp:     orderTimeProto,
 			IsTaker:       true,
 			IsSell:        item.isSell,
 			Price:         price,
@@ -169,12 +177,12 @@ func (m *Matcher) processMarketOrder(tree, otherTree *btree.BTree, item orderIte
 }
 
 func (m *Matcher) processLimitOrder(tree, otherTree *btree.BTree, item orderItem,
-	timeNowProto *tspb.Timestamp) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error) {
+	orderTimeProto *tspb.Timestamp) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error) {
 	// Convert the limit order to market order if the order price is equal to or better than the best
 	// price of the other tree.
 	bestPrice := otherTree.Max().(orderItem).price
 	if (item.price == bestPrice) || (item.isSell && item.price < bestPrice) {
-		return m.processMarketOrder(tree, otherTree, item, timeNowProto)
+		return m.processMarketOrder(tree, otherTree, item, orderTimeProto)
 	}
 
 	// Add the limit order to the order book.
@@ -184,7 +192,7 @@ func (m *Matcher) processLimitOrder(tree, otherTree *btree.BTree, item orderItem
 	} else {
 		orderBookEvents = append(orderBookEvents, &pb.OrderBookEvent{
 			OrderId:   item.orderId,
-			Timestamp: timeNowProto,
+			Timestamp: orderTimeProto,
 			Type:      pb.OrderBookEvent_ADD,
 			IsSell:    item.isSell,
 			Price:     item.price,
@@ -196,14 +204,14 @@ func (m *Matcher) processLimitOrder(tree, otherTree *btree.BTree, item orderItem
 }
 
 func (m *Matcher) processCancelOrder(tree *btree.BTree, item orderItem,
-	timeNowProto *tspb.Timestamp) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error) {
+	orderTimeProto *tspb.Timestamp) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error) {
 	orderBookEvents := []*pb.OrderBookEvent{}
 	if tree.Delete(item) == nil {
 		return nil, nil, errors.New("processCancelOrder(): order cannot be canceled: not exist")
 	} else {
 		orderBookEvents = append(orderBookEvents, &pb.OrderBookEvent{
 			OrderId:   item.orderId,
-			Timestamp: timeNowProto,
+			Timestamp: orderTimeProto,
 			Type:      pb.OrderBookEvent_REMOVE,
 			IsSell:    item.isSell,
 			Price:     item.price,

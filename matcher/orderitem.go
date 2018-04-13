@@ -12,7 +12,7 @@ import (
 // If two items have the same price, the early one is ranked higher.
 type orderItem struct {
 	orderId   string
-	timestamp time.Time
+	orderTime time.Time
 	isSell    bool
 	price     float64
 	volume    float64
@@ -23,5 +23,5 @@ func (o orderItem) Less(than btree.Item) bool {
 	if o.price != t.price {
 		return (o.price > t.price) == o.isSell
 	}
-	return o.timestamp.Before(t.timestamp)
+	return o.orderTime.Before(t.orderTime)
 }
