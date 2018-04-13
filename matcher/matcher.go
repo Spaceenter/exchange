@@ -180,9 +180,11 @@ func (m *Matcher) processLimitOrder(tree, otherTree *btree.BTree, item orderItem
 	orderTimeProto *tspb.Timestamp) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error) {
 	// Convert the limit order to market order if the order price is equal to or better than the best
 	// price of the other tree.
-	bestPrice := otherTree.Max().(orderItem).price
-	if (item.price == bestPrice) || (item.isSell && item.price < bestPrice) {
-		return m.processMarketOrder(tree, otherTree, item, orderTimeProto)
+	if otherTree.Len() > 0 {
+		bestPrice := otherTree.Max().(orderItem).price
+		if (item.price == bestPrice) || (item.isSell && item.price < bestPrice) {
+			return m.processMarketOrder(tree, otherTree, item, orderTimeProto)
+		}
 	}
 
 	// Add the limit order to the order book.
