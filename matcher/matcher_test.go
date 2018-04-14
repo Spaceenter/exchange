@@ -1,9 +1,9 @@
 package matcher
 
 import (
-	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	pb "github.com/spaceenter/exchange/proto"
 	"github.com/spaceenter/exchange/testutil"
 )
@@ -65,7 +65,7 @@ func TestSimpleLimitOrderAndCancelOrder(t *testing.T) {
 		if gotTradeEvents != nil {
 			t.Errorf("SubmitOrder(LIMIT) TradeEvents = %s, want nil", gotTradeEvents)
 		}
-		if !reflect.DeepEqual(gotOrderBookEvents, c.wantOrderBookEvents) {
+		if !cmp.Equal(gotOrderBookEvents, c.wantOrderBookEvents) {
 			t.Errorf("SubmitOrder(LIMIT) OrderBookEvents = %s, want %s", gotOrderBookEvents,
 				c.wantOrderBookEvents)
 		}
@@ -104,7 +104,7 @@ func TestSimpleLimitOrderAndCancelOrder(t *testing.T) {
 			},
 		},
 	}
-	if !reflect.DeepEqual(gotOrderBook, wantOrderBook) {
+	if !cmp.Equal(gotOrderBook, wantOrderBook) {
 		t.Errorf("OrderBook(LIMIT) = %s, want %s", gotOrderBook, wantOrderBook)
 	}
 
@@ -130,7 +130,7 @@ func TestSimpleLimitOrderAndCancelOrder(t *testing.T) {
 			Volume:    3.2,
 		},
 	}
-	if !reflect.DeepEqual(gotOrderBookEvents, wantOrderBookEvents) {
+	if !cmp.Equal(gotOrderBookEvents, wantOrderBookEvents) {
 		t.Errorf("SubmitOrder(CANCEL) OrderBookEvents = %s, want %s", gotOrderBookEvents,
 			wantOrderBookEvents)
 	}
@@ -157,7 +157,7 @@ func TestSimpleLimitOrderAndCancelOrder(t *testing.T) {
 			},
 		},
 	}
-	if !reflect.DeepEqual(gotOrderBook, wantOrderBook) {
+	if !cmp.Equal(gotOrderBook, wantOrderBook) {
 		t.Errorf("OrderBook(CANCEL) = %s, want %s", gotOrderBook, wantOrderBook)
 	}
 }
