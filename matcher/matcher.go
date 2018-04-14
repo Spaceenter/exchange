@@ -45,6 +45,9 @@ func (m *Matcher) OrderBook(snapshotTime time.Time) (*pb.OrderBook, error) {
 		{true, m.sellTree},
 		{false, m.buyTree},
 	} {
+		if t.tree.Len() == 0 {
+			continue
+		}
 		orderTree := &pb.OrderTree{IsSell: t.isSell}
 		t.tree.Descend(btree.ItemIterator(func(i btree.Item) bool {
 			item := i.(orderItem)
@@ -208,6 +211,7 @@ func (m *Matcher) processLimitOrder(tree, otherTree *btree.BTree, item orderItem
 func (m *Matcher) processCancelOrder(tree *btree.BTree, item orderItem,
 	orderTimeProto *tspb.Timestamp) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error) {
 	orderBookEvents := []*pb.OrderBookEvent{}
+
 	if tree.Delete(item) == nil {
 		return nil, nil, errors.New("processCancelOrder(): order cannot be canceled: not exist")
 	} else {
