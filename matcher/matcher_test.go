@@ -8,6 +8,10 @@ import (
 	"github.com/spaceenter/exchange/testutil"
 )
 
+func TestMarketOrder(t *testing.T) {
+	// matcher := New(pb.TradingPair_BTC_USD)
+}
+
 func TestSimpleLimitOrderAndCancelOrder(t *testing.T) {
 	matcher := New(pb.TradingPair_BTC_USD)
 
@@ -160,4 +164,8 @@ func TestSimpleLimitOrderAndCancelOrder(t *testing.T) {
 	if !cmp.Equal(gotOrderBook, wantOrderBook) {
 		t.Errorf("OrderBook(CANCEL) = %s, want %s", gotOrderBook, wantOrderBook)
 	}
+}
+
+func TestLimitOrderConvertToMarketOrder(t *testing.T) {
+	// matcher := New(pb.TradingPair_BTC_USD)
 }
