@@ -23,5 +23,8 @@ func (o orderItem) Less(than btree.Item) bool {
 	if o.price != t.price {
 		return (o.price > t.price) == o.isSell
 	}
-	return o.orderTime.Before(t.orderTime)
+	if !o.orderTime.Equal(t.orderTime) {
+		return o.orderTime.Before(t.orderTime)
+	}
+	return o.orderId < t.orderId
 }

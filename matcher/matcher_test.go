@@ -8,10 +8,6 @@ import (
 	"github.com/spaceenter/exchange/testutil"
 )
 
-func TestMarketOrder(t *testing.T) {
-	// matcher := New(pb.TradingPair_BTC_USD)
-}
-
 func TestSimpleLimitOrderAndCancelOrder(t *testing.T) {
 	matcher := New(pb.TradingPair_BTC_USD)
 
@@ -164,6 +160,42 @@ func TestSimpleLimitOrderAndCancelOrder(t *testing.T) {
 	if !cmp.Equal(gotOrderBook, wantOrderBook) {
 		t.Errorf("OrderBook(CANCEL) = %s, want %s", gotOrderBook, wantOrderBook)
 	}
+}
+
+func TestLimitOrderMultiple(t *testing.T) {
+	matcher := New(pb.TradingPair_BTC_USD)
+
+	// Add limit orders as makers.
+	for _, l := range []struct {
+		orderId string
+		isSell  bool
+		price   float64
+		volume  float64
+	}{
+		{"s1", true, 2.1, 2},
+		{"s2", true, 2.1, 2},
+		{"s3", true, 2.2, 2},
+		{"s4", true, 2.3, 3},
+		{"b1", true, 1.9, 2},
+		{"b2", true, 1.9, 2},
+		{"b3", true, 1.8, 2},
+		{"b4", true, 1.7, 3},
+	} {
+		order := &pb.Order{
+			OrderId:   l.orderId,
+			OrderTime: testutil.ProtoTimeEarly,
+			Type:      pb.Order_LIMIT,
+			IsSell:    l.isSell,
+			Price:     l.price,
+			Volume:    l.volume,
+		}
+		if _, _, err := matcher.SubmitOrder(order); err != nil {
+			t.Errorf("SubmitOrder(%s) = %s", l.orderId, err)
+		}
+	}
+}
+
+func TestMarketOrder(t *testing.T) {
 }
 
 func TestLimitOrderConvertToMarketOrder(t *testing.T) {
