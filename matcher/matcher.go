@@ -116,21 +116,14 @@ func (m *Matcher) processMarketOrder(tree, otherTree *btree.BTree, item orderIte
 	for item.volume > 0 && otherTree.Len() > 0 {
 		maxItem := otherTree.Max().(orderItem)
 		var matchedVolume float64
+		var residualMaxItem orderItem
 
 		if item.volume >= maxItem.volume {
 			matchedVolume = maxItem.volume
 		} else {
 			matchedVolume = item.volume
-
-			// Add residual volume of the limit order as a new limit order.
-			residualMaxItem := maxItem
+			residualMaxItem = maxItem
 			residualMaxItem.volume -= matchedVolume
-			ts, os, err := m.processLimitOrder(otherTree, tree, residualMaxItem, orderTimeProto)
-			if err != nil {
-				return nil, nil, err
-			}
-			tradeEvents = append(tradeEvents, ts...)
-			orderBookEvents = append(orderBookEvents, os...)
 		}
 
 		// Cancel matched limit order.
@@ -139,6 +132,16 @@ func (m *Matcher) processMarketOrder(tree, otherTree *btree.BTree, item orderIte
 			return nil, nil, err
 		}
 		orderBookEvents = append(orderBookEvents, os...)
+
+		// Add residual volume of the limit order as a new limit order.
+		if residualMaxItem != (orderItem{}) {
+			ts, os, err := m.processLimitOrder(otherTree, tree, residualMaxItem, orderTimeProto)
+			if err != nil {
+				return nil, nil, err
+			}
+			tradeEvents = append(tradeEvents, ts...)
+			orderBookEvents = append(orderBookEvents, os...)
+		}
 
 		// Trade event of the matched limit order.
 		tradeEvents = append(tradeEvents, &pb.TradeEvent{

@@ -20,17 +20,6 @@
   revision = "e89373fe6b4a7413d7acd6da1725b83ef713e6e4"
 
 [[projects]]
-  name = "github.com/google/go-cmp"
-  packages = [
-    "cmp",
-    "cmp/internal/diff",
-    "cmp/internal/function",
-    "cmp/internal/value"
-  ]
-  revision = "3af367b6b30c263d47e8895973edcca9a49cf029"
-  version = "v0.2.0"
-
-[[projects]]
   branch = "master"
   name = "github.com/petar/GoLLRB"
   packages = ["llrb"]
@@ -39,6 +28,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "732fe9cf4b403dafe4ee02ad41236845d13ac2ee3126ed8c16770f5780d9f38a"
+  inputs-digest = "6748c293dfccb32b05504ce091935bfed8b5a977e81bc7dbf2bad5302b37b035"
   solver-name = "gps-cdcl"
   solver-version = 1
