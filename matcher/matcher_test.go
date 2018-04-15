@@ -359,9 +359,11 @@ func TestMarketOrder(t *testing.T) {
 			t.Errorf("SubmitOrder(%s) = %s", c.order.OrderId, err)
 			continue
 		}
-		if !reflect.DeepEqual(gotTradeEvents, c.wantTradeEvents) {
-			t.Errorf("SubmitOrder(%s) TradeEvents = %s, want %s", c.order.OrderId, gotTradeEvents,
-				c.wantTradeEvents)
+		gotTradeEventsMap := tradeEventsSliceToMap(gotTradeEvents)
+		wantTradeEventsMap := tradeEventsSliceToMap(c.wantTradeEvents)
+		if !reflect.DeepEqual(gotTradeEventsMap, wantTradeEventsMap) {
+			t.Errorf("SubmitOrder(%s) TradeEvents = %v, want %v", c.order.OrderId, gotTradeEventsMap,
+				wantTradeEventsMap)
 		}
 		if !reflect.DeepEqual(gotOrderBookEvents, c.wantOrderBookEvents) {
 			t.Errorf("SubmitOrder(%s) OrderBookEvents = %s, want %s", c.order.OrderId, gotOrderBookEvents,
@@ -409,12 +411,203 @@ func TestMarketOrder(t *testing.T) {
 }
 
 func TestLimitOrderConvertToMarketOrder(t *testing.T) {
-	/*
-		matcher, err := buildTestOrderBook()
+	matcher, err := buildTestOrderBook()
+	if err != nil {
+		t.Fatalf("buildTestOrderBook() = %s", err)
+	}
+
+	for _, c := range []struct {
+		order               *pb.Order
+		wantTradeEvents     []*pb.TradeEvent
+		wantOrderBookEvents []*pb.OrderBookEvent
+	}{
+		// Small limit order with price far away from middle price.
+		{
+			&pb.Order{
+				OrderId:   "a",
+				OrderTime: testutil.ProtoTimeNow,
+				Type:      pb.Order_LIMIT,
+				IsSell:    true,
+				Price:     1.7,
+				Volume:    0.5,
+			},
+			[]*pb.TradeEvent{
+				{
+					OrderId:       "b2",
+					Timestamp:     testutil.ProtoTimeNow,
+					IsTaker:       false,
+					IsSell:        false,
+					Price:         1.9,
+					MatchedVolume: 0.5,
+					LeftVolume:    1.5,
+				},
+				{
+					OrderId:       "a",
+					Timestamp:     testutil.ProtoTimeNow,
+					IsTaker:       true,
+					IsSell:        true,
+					Price:         1.9,
+					MatchedVolume: 0.5,
+					LeftVolume:    0,
+				},
+			},
+			[]*pb.OrderBookEvent{
+				{
+					OrderId:   "b2",
+					Timestamp: testutil.ProtoTimeNow,
+					Type:      pb.OrderBookEvent_REMOVE,
+					IsSell:    false,
+					Price:     1.9,
+					Volume:    2,
+				},
+				{
+					OrderId:   "b2",
+					Timestamp: testutil.ProtoTimeNow,
+					Type:      pb.OrderBookEvent_ADD,
+					IsSell:    false,
+					Price:     1.9,
+					Volume:    1.5,
+				},
+			},
+		},
+		// Large limit order with price close to middle price.
+		{
+			&pb.Order{
+				OrderId:   "b",
+				OrderTime: testutil.ProtoTimeNow,
+				Type:      pb.Order_LIMIT,
+				IsSell:    false,
+				Price:     2.15,
+				Volume:    5,
+			},
+			[]*pb.TradeEvent{
+				{
+					OrderId:       "s2",
+					Timestamp:     testutil.ProtoTimeNow,
+					IsTaker:       false,
+					IsSell:        true,
+					Price:         2.1,
+					MatchedVolume: 2,
+					LeftVolume:    0,
+				},
+				{
+					OrderId:       "s1",
+					Timestamp:     testutil.ProtoTimeNow,
+					IsTaker:       false,
+					IsSell:        true,
+					Price:         2.1,
+					MatchedVolume: 2,
+					LeftVolume:    0,
+				},
+				{
+					OrderId:       "b",
+					Timestamp:     testutil.ProtoTimeNow,
+					IsTaker:       true,
+					IsSell:        false,
+					Price:         2.1,
+					MatchedVolume: 4,
+					LeftVolume:    1,
+				},
+			},
+			[]*pb.OrderBookEvent{
+				{
+					OrderId:   "s2",
+					Timestamp: testutil.ProtoTimeNow,
+					Type:      pb.OrderBookEvent_REMOVE,
+					IsSell:    true,
+					Price:     2.1,
+					Volume:    2,
+				},
+				{
+					OrderId:   "s1",
+					Timestamp: testutil.ProtoTimeNow,
+					Type:      pb.OrderBookEvent_REMOVE,
+					IsSell:    true,
+					Price:     2.1,
+					Volume:    2,
+				},
+				{
+					OrderId:   "b",
+					Timestamp: testutil.ProtoTimeNow,
+					Type:      pb.OrderBookEvent_ADD,
+					IsSell:    false,
+					Price:     2.15,
+					Volume:    1,
+				},
+			},
+		},
+	} {
+		gotTradeEvents, gotOrderBookEvents, err := matcher.SubmitOrder(c.order)
 		if err != nil {
-			t.Fatalf("buildTestOrderBook() = %s", err)
+			t.Errorf("SubmitOrder(%s) = %s", c.order.OrderId, err)
+			continue
 		}
-	*/
+		gotTradeEventsMap := tradeEventsSliceToMap(gotTradeEvents)
+		wantTradeEventsMap := tradeEventsSliceToMap(c.wantTradeEvents)
+		if !reflect.DeepEqual(gotTradeEventsMap, wantTradeEventsMap) {
+			t.Errorf("SubmitOrder(%s) TradeEvents = %v, want %v", c.order.OrderId, gotTradeEventsMap,
+				wantTradeEventsMap)
+		}
+		if !reflect.DeepEqual(gotOrderBookEvents, c.wantOrderBookEvents) {
+			t.Errorf("SubmitOrder(%s) OrderBookEvents = %s, want %s", c.order.OrderId, gotOrderBookEvents,
+				c.wantOrderBookEvents)
+		}
+	}
+
+	// Check order book.
+	gotOrderBook, err := matcher.OrderBook(testutil.TimeLate)
+	if err != nil {
+		t.Fatalf("OrderBook() = %s", err)
+	}
+	wantOrderBook := &pb.OrderBook{
+		Pair:         pb.TradingPair_BTC_USD,
+		SnapshotTime: testutil.ProtoTimeLate,
+		Trees: []*pb.OrderTree{
+			{
+				IsSell: true,
+				Items: []*pb.OrderItem{
+					{
+						OrderId:   "s3",
+						OrderTime: testutil.ProtoTimeEarly,
+						Price:     2.2,
+						Volume:    2,
+					},
+				},
+			},
+			{
+				IsSell: false,
+				Items: []*pb.OrderItem{
+					{
+						OrderId:   "b",
+						OrderTime: testutil.ProtoTimeNow,
+						Price:     2.15,
+						Volume:    1,
+					},
+					{
+						OrderId:   "b2",
+						OrderTime: testutil.ProtoTimeEarly,
+						Price:     1.9,
+						Volume:    1.5,
+					},
+					{
+						OrderId:   "b1",
+						OrderTime: testutil.ProtoTimeEarly,
+						Price:     1.9,
+						Volume:    2,
+					},
+					{
+						OrderId:   "b3",
+						OrderTime: testutil.ProtoTimeEarly,
+						Price:     1.8,
+						Volume:    2,
+					},
+				},
+			},
+		},
+	}
+	if !reflect.DeepEqual(gotOrderBook, wantOrderBook) {
+		t.Errorf("OrderBook() = %s, want %s", gotOrderBook, wantOrderBook)
+	}
 }
 
 func buildTestOrderBook() (*Matcher, error) {
@@ -448,4 +641,14 @@ func buildTestOrderBook() (*Matcher, error) {
 	}
 
 	return matcher, nil
+}
+
+// tradeEventsSliceToMap converts trade events slice to map to make comparison not order sensitive.
+// This is needed because trade events slice is built from a map whose order is not guaranteeded.
+func tradeEventsSliceToMap(slice []*pb.TradeEvent) map[pb.TradeEvent]struct{} {
+	m := map[pb.TradeEvent]struct{}{}
+	for _, e := range slice {
+		m[*e] = struct{}{}
+	}
+	return m
 }
