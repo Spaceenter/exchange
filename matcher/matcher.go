@@ -93,6 +93,7 @@ func (m *Matcher) SubmitOrder(order *pb.Order) ([]*pb.TradeEvent, []*pb.OrderBoo
 
 	switch order.Type {
 	case pb.Order_MARKET:
+		item.price = 0
 		return m.processMarketOrder(tree, otherTree, item, order.OrderTime)
 	case pb.Order_LIMIT:
 		return m.processLimitOrder(tree, otherTree, item, order.OrderTime)
@@ -115,9 +116,24 @@ func (m *Matcher) processMarketOrder(tree, otherTree *btree.BTree, item orderIte
 
 	for item.volume > 0 && otherTree.Len() > 0 {
 		maxItem := otherTree.Max().(orderItem)
+
+		// For the market order converted from a limit order, if the limit order price is already out of
+		// the range of the other tree, stop processing the market order and add the left volume as a
+		// limit order.
+		if item.price > 0 {
+			if (!item.isSell && item.price < maxItem.price) || (item.isSell && item.price > maxItem.price) {
+				ts, os, err := m.processLimitOrder(tree, otherTree, item, orderTimeProto)
+				if err != nil {
+					return nil, nil, err
+				}
+				tradeEvents = append(tradeEvents, ts...)
+				orderBookEvents = append(orderBookEvents, os...)
+				break
+			}
+		}
+
 		var matchedVolume float64
 		var residualMaxItem orderItem
-
 		if item.volume >= maxItem.volume {
 			matchedVolume = maxItem.volume
 		} else {
@@ -188,7 +204,7 @@ func (m *Matcher) processLimitOrder(tree, otherTree *btree.BTree, item orderItem
 	// price of the other tree.
 	if otherTree.Len() > 0 {
 		bestPrice := otherTree.Max().(orderItem).price
-		if (item.price == bestPrice) || (item.isSell && item.price < bestPrice) {
+		if (!item.isSell && item.price >= bestPrice) || (item.isSell && item.price <= bestPrice) {
 			return m.processMarketOrder(tree, otherTree, item, orderTimeProto)
 		}
 	}

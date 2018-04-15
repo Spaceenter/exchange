@@ -42,7 +42,7 @@ func TestSimpleLimitOrderAndCancelOrder(t *testing.T) {
 				OrderTime: testutil.ProtoTimeNow,
 				Type:      pb.Order_LIMIT,
 				IsSell:    false,
-				Price:     2.2,
+				Price:     1.9,
 				Volume:    3.3,
 			},
 			[]*pb.OrderBookEvent{
@@ -51,7 +51,7 @@ func TestSimpleLimitOrderAndCancelOrder(t *testing.T) {
 					Timestamp: testutil.ProtoTimeNow,
 					Type:      pb.OrderBookEvent_ADD,
 					IsSell:    false,
-					Price:     2.2,
+					Price:     1.9,
 					Volume:    3.3,
 				},
 			},
@@ -97,7 +97,7 @@ func TestSimpleLimitOrderAndCancelOrder(t *testing.T) {
 					{
 						OrderId:   "b",
 						OrderTime: testutil.ProtoTimeNow,
-						Price:     2.2,
+						Price:     1.9,
 						Volume:    3.3,
 					},
 				},
@@ -150,7 +150,7 @@ func TestSimpleLimitOrderAndCancelOrder(t *testing.T) {
 					{
 						OrderId:   "b",
 						OrderTime: testutil.ProtoTimeNow,
-						Price:     2.2,
+						Price:     1.9,
 						Volume:    3.3,
 					},
 				},
