@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	pb "github.com/spaceenter/exchange/proto"
+	pb "github.com/spaceenter/exchange/matching_engine/matcher/proto"
 	"github.com/spaceenter/exchange/testutil"
 )
 

@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package matcher;
+
+service MatcherService {
+  rpc GetOrderBook (GetOrderBookRequest) returns (GetOrderBookResponse) {}
+}
+
+message GetOrderBookRequest {
+}
+
+message GetOrderBookResponse {
+}

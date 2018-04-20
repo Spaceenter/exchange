@@ -8,8 +8,13 @@ import (
 	"github.com/golang/protobuf/ptypes"
 	tspb "github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/btree"
-	pb "github.com/spaceenter/exchange/proto"
+	pb "github.com/spaceenter/exchange/matching_engine/matcher/proto"
 )
+
+type MatcherInterface interface {
+	OrderBook(snapshotTime time.Time) (*pb.OrderBook, error)
+	SubmitOrder(order *pb.Order) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error)
+}
 
 type Matcher struct {
 	tradingPair pb.TradingPair
