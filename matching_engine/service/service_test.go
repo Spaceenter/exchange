@@ -2,5 +2,8 @@ package service
 
 import "testing"
 
-func TestOrderBook(t *testing.T) {
+func TestGetOrderBook(t *testing.T) {
+}
+
+func TestCreateOrder(t *testing.T) {
 }

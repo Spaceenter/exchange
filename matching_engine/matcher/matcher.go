@@ -13,7 +13,7 @@ import (
 
 type MatcherInterface interface {
 	OrderBook(snapshotTime time.Time) (*pb.OrderBook, error)
-	SubmitOrder(order *pb.Order) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error)
+	CreateOrder(order *pb.Order) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error)
 }
 
 type Matcher struct {
@@ -73,8 +73,8 @@ func (m *Matcher) OrderBook(snapshotTime time.Time) (*pb.OrderBook, error) {
 	return orderBook, nil
 }
 
-// SubmitOrder submits an order, and gets corresponding trade and order book events.
-func (m *Matcher) SubmitOrder(order *pb.Order) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error) {
+// CreateOrder submits an order, and gets corresponding trade and order book events.
+func (m *Matcher) CreateOrder(order *pb.Order) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error) {
 	orderTime, err := ptypes.Timestamp(order.OrderTime)
 	if err != nil {
 		return nil, nil, err
@@ -105,7 +105,7 @@ func (m *Matcher) SubmitOrder(order *pb.Order) ([]*pb.TradeEvent, []*pb.OrderBoo
 	case pb.Order_CANCEL:
 		return m.processCancelOrder(tree, item, order.OrderTime)
 	default:
-		return nil, nil, errors.New("SubmitOrder(): unknown OrderType")
+		return nil, nil, errors.New("CreateOrder(): unknown OrderType")
 	}
 }
 

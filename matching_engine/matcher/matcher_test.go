@@ -57,16 +57,16 @@ func TestSimpleLimitOrderAndCancelOrder(t *testing.T) {
 			},
 		},
 	} {
-		gotTradeEvents, gotOrderBookEvents, err := matcher.SubmitOrder(c.order)
+		gotTradeEvents, gotOrderBookEvents, err := matcher.CreateOrder(c.order)
 		if err != nil {
-			t.Errorf("SubmitOrder(LIMIT) = %s", err)
+			t.Errorf("CreateOrder(LIMIT) = %s", err)
 			continue
 		}
 		if gotTradeEvents != nil {
-			t.Errorf("SubmitOrder(LIMIT) TradeEvents = %s, want nil", gotTradeEvents)
+			t.Errorf("CreateOrder(LIMIT) TradeEvents = %s, want nil", gotTradeEvents)
 		}
 		if !reflect.DeepEqual(gotOrderBookEvents, c.wantOrderBookEvents) {
-			t.Errorf("SubmitOrder(LIMIT) OrderBookEvents = %s, want %s", gotOrderBookEvents,
+			t.Errorf("CreateOrder(LIMIT) OrderBookEvents = %s, want %s", gotOrderBookEvents,
 				c.wantOrderBookEvents)
 		}
 	}
@@ -109,7 +109,7 @@ func TestSimpleLimitOrderAndCancelOrder(t *testing.T) {
 	}
 
 	// Cancel order.
-	gotTradeEvents, gotOrderBookEvents, err := matcher.SubmitOrder(&pb.Order{
+	gotTradeEvents, gotOrderBookEvents, err := matcher.CreateOrder(&pb.Order{
 		OrderId:   "a",
 		OrderTime: testutil.ProtoTimeEarly,
 		Type:      pb.Order_CANCEL,
@@ -118,7 +118,7 @@ func TestSimpleLimitOrderAndCancelOrder(t *testing.T) {
 		Volume:    3.2,
 	})
 	if gotTradeEvents != nil {
-		t.Errorf("SubmitOrder(CANCEL) TradeEvents = %s, want nil", gotTradeEvents)
+		t.Errorf("CreateOrder(CANCEL) TradeEvents = %s, want nil", gotTradeEvents)
 	}
 	wantOrderBookEvents := []*pb.OrderBookEvent{
 		{
@@ -131,7 +131,7 @@ func TestSimpleLimitOrderAndCancelOrder(t *testing.T) {
 		},
 	}
 	if !reflect.DeepEqual(gotOrderBookEvents, wantOrderBookEvents) {
-		t.Errorf("SubmitOrder(CANCEL) OrderBookEvents = %s, want %s", gotOrderBookEvents,
+		t.Errorf("CreateOrder(CANCEL) OrderBookEvents = %s, want %s", gotOrderBookEvents,
 			wantOrderBookEvents)
 	}
 
@@ -354,19 +354,19 @@ func TestMarketOrder(t *testing.T) {
 			},
 		},
 	} {
-		gotTradeEvents, gotOrderBookEvents, err := matcher.SubmitOrder(c.order)
+		gotTradeEvents, gotOrderBookEvents, err := matcher.CreateOrder(c.order)
 		if err != nil {
-			t.Errorf("SubmitOrder(%s) = %s", c.order.OrderId, err)
+			t.Errorf("CreateOrder(%s) = %s", c.order.OrderId, err)
 			continue
 		}
 		gotTradeEventsMap := tradeEventsSliceToMap(gotTradeEvents)
 		wantTradeEventsMap := tradeEventsSliceToMap(c.wantTradeEvents)
 		if !reflect.DeepEqual(gotTradeEventsMap, wantTradeEventsMap) {
-			t.Errorf("SubmitOrder(%s) TradeEvents = %v, want %v", c.order.OrderId, gotTradeEventsMap,
+			t.Errorf("CreateOrder(%s) TradeEvents = %v, want %v", c.order.OrderId, gotTradeEventsMap,
 				wantTradeEventsMap)
 		}
 		if !reflect.DeepEqual(gotOrderBookEvents, c.wantOrderBookEvents) {
-			t.Errorf("SubmitOrder(%s) OrderBookEvents = %s, want %s", c.order.OrderId, gotOrderBookEvents,
+			t.Errorf("CreateOrder(%s) OrderBookEvents = %s, want %s", c.order.OrderId, gotOrderBookEvents,
 				c.wantOrderBookEvents)
 		}
 	}
@@ -537,19 +537,19 @@ func TestLimitOrderConvertToMarketOrder(t *testing.T) {
 			},
 		},
 	} {
-		gotTradeEvents, gotOrderBookEvents, err := matcher.SubmitOrder(c.order)
+		gotTradeEvents, gotOrderBookEvents, err := matcher.CreateOrder(c.order)
 		if err != nil {
-			t.Errorf("SubmitOrder(%s) = %s", c.order.OrderId, err)
+			t.Errorf("CreateOrder(%s) = %s", c.order.OrderId, err)
 			continue
 		}
 		gotTradeEventsMap := tradeEventsSliceToMap(gotTradeEvents)
 		wantTradeEventsMap := tradeEventsSliceToMap(c.wantTradeEvents)
 		if !reflect.DeepEqual(gotTradeEventsMap, wantTradeEventsMap) {
-			t.Errorf("SubmitOrder(%s) TradeEvents = %v, want %v", c.order.OrderId, gotTradeEventsMap,
+			t.Errorf("CreateOrder(%s) TradeEvents = %v, want %v", c.order.OrderId, gotTradeEventsMap,
 				wantTradeEventsMap)
 		}
 		if !reflect.DeepEqual(gotOrderBookEvents, c.wantOrderBookEvents) {
-			t.Errorf("SubmitOrder(%s) OrderBookEvents = %s, want %s", c.order.OrderId, gotOrderBookEvents,
+			t.Errorf("CreateOrder(%s) OrderBookEvents = %s, want %s", c.order.OrderId, gotOrderBookEvents,
 				c.wantOrderBookEvents)
 		}
 	}
@@ -635,7 +635,7 @@ func buildTestOrderBook() (*Matcher, error) {
 			Price:     l.price,
 			Volume:    l.volume,
 		}
-		if _, _, err := matcher.SubmitOrder(order); err != nil {
+		if _, _, err := matcher.CreateOrder(order); err != nil {
 			return matcher, err
 		}
 	}
