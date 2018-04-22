@@ -11,7 +11,7 @@ import (
 	pb "github.com/spaceenter/exchange/matching_engine/matcher/proto"
 )
 
-type MatcherInterface interface {
+type Interface interface {
 	OrderBook(snapshotTime time.Time) (*pb.OrderBook, error)
 	CreateOrder(order *pb.Order) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error)
 }
