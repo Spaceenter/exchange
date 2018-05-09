@@ -4,12 +4,8 @@ import (
 	"testing"
 	"time"
 
-	mpb "github.com/spaceenter/exchange/matching_engine/matcher/proto"
+	mpb "github.com/catortiger/exchange/matching_engine/matcher/proto"
 )
-
-type fakeStore struct{}
-
-// TODO: Implement fakeStore functions to satisfy its interface.
 
 type fakeMatcher struct {
 	orderBook       *mpb.OrderBook

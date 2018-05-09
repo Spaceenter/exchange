@@ -4,21 +4,17 @@ import (
 	"context"
 	"time"
 
-	"github.com/spaceenter/exchange/matching_engine/matcher"
-	pb "github.com/spaceenter/exchange/matching_engine/service/proto"
-	"github.com/spaceenter/exchange/store"
+	"github.com/catortiger/exchange/matching_engine/matcher"
+	pb "github.com/catortiger/exchange/matching_engine/rpc/proto"
 )
 
 type MatcherService struct {
+	// TODO: Multiple matcher instances - one for each trading pair.
 	matcher matcher.Interface
-	store   store.Interface
 }
 
-func New(matcher matcher.Interface, store store.Interface) *MatcherService {
-	return &MatcherService{
-		matcher: matcher,
-		store:   store,
-	}
+func New(matcher matcher.Interface) *MatcherService {
+	return &MatcherService{matcher: matcher}
 }
 
 func (s *MatcherService) GetOrderBook(ctx context.Context,
@@ -29,7 +25,6 @@ func (s *MatcherService) GetOrderBook(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	// TODO: Add records to DB.
 	return out, nil
 }
 
@@ -41,6 +36,5 @@ func (s *MatcherService) CreateOrder(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	// TODO: Add records to DB.
 	return out, nil
 }

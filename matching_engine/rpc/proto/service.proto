@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-import "github.com/spaceenter/exchange/matching_engine/matcher/proto/matcher.proto";
+import "github.com/catortiger/exchange/matching_engine/matcher/proto/matcher.proto";
 
 package matcherservice;
 
