@@ -2,11 +2,13 @@ package store
 
 import (
 	"database/sql"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 )
 
 type Interface interface {
+	CreateUser(userName string, creationTime time.Time) (int64, error)
 }
 
 type Store struct {
