@@ -12,6 +12,7 @@ import (
 )
 
 type Interface interface {
+	TradingPair() pb.TradingPair
 	OrderBook(snapshotTime time.Time) (*pb.OrderBook, error)
 	CreateOrder(order *pb.Order) ([]*pb.TradeEvent, []*pb.OrderBookEvent, error)
 }
@@ -28,6 +29,11 @@ func New(tradingPair pb.TradingPair) *Matcher {
 		sellTree:    btree.New(2),
 		buyTree:     btree.New(2),
 	}
+}
+
+// TradingPair gets the trading pair of the matcher.
+func (m *Matcher) TradingPair() pb.TradingPair {
+	return m.tradingPair
 }
 
 // OrderBook gets the orderbook.

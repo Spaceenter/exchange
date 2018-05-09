@@ -10,6 +10,7 @@ service MatcherService {
 }
 
 message GetOrderBookRequest {
+  matcher.TradingPair trading_pair = 1;
 }
 
 message GetOrderBookResponse {
@@ -17,7 +18,8 @@ message GetOrderBookResponse {
 }
 
 message CreateOrderRequest {
-  matcher.Order order = 1;
+  matcher.TradingPair trading_pair = 1;
+  matcher.Order order = 2;
 }
 
 message CreateOrderResponse {

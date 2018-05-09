@@ -8,9 +8,14 @@ import (
 )
 
 type fakeMatcher struct {
+	tradingPair     mpb.TradingPair
 	orderBook       *mpb.OrderBook
 	tradeEvents     []*mpb.TradeEvent
 	orderBookEvents []*mpb.OrderBookEvent
+}
+
+func (m *fakeMatcher) TradingPair() mpb.TradingPair {
+	return m.tradingPair
 }
 
 func (m *fakeMatcher) OrderBook(snapshotTime time.Time) (*mpb.OrderBook, error) {
