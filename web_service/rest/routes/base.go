@@ -1,7 +1,8 @@
 package routes
 
 import (
-	"io"
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -18,7 +19,6 @@ type Route struct {
 	Method           []string
 	Pattern          string
 	ContextedHandler *ContextedHandler
-	Controller       string
 }
 
 //Routes just stores our Route declarations
@@ -73,7 +73,7 @@ func InitRouter(c rest.WebService) *mux.Router {
 //ContextedHandler is a wrapper to provide AppContext to our Handlers
 type ContextedHandler struct {
 	server      *rest.WebService
-	ProcessFunc func(*rest.WebService, *controller.RequestInfo, controller.Query, io.ReadCloser) (*controller.Response, error)
+	ProcessFunc controller.ProcessFunc
 }
 
 // ServeHTTP ...
@@ -85,16 +85,39 @@ func (handler *ContextedHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	//parse the queries
 	//need a factory to create correct controller.
 	//need a binding object pass it to api controller
+
+	//get values from header
 	info := &controller.RequestInfo{
 		Protocal:   "json", // change to enum
 		APIVersion: "v1",   // change to enum
 	}
 
-	status, err := handler.ProcessFunc(handler.server, info, mux.Vars(r), r.Body)
-	if err != nil {
-		log.Printf("HTTP %d: %q", status, err)
-		switch status {
-		// TODO you can handle any error that a router might return here.
+	// Call the actual handler
+	response, resErr := handler.ProcessFunc(handler.server, info, mux.Vars(r), r.Body)
+	// Check for errors
+	if nil != resErr {
+		if resErr.Error != nil {
+			log.Printf("ERROR: %v\n", resErr.Error)
+		}
+		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, resErr.Message), resErr.Code)
+		return
+	}
+
+	if response == nil {
+		log.Println("ERROR: response from method is nil")
+		http.Error(w, "Internal server error. Check the logs.", http.StatusInternalServerError)
+		return
+	}
+
+	var bytes []byte
+
+	if response.IsJson() {
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, "Error Encode JSON", http.StatusInternalServerError)
 		}
 	}
+
+	// Send the response and log
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(bytes)
 }

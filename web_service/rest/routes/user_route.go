@@ -11,20 +11,25 @@ type UserRoutes struct {
 func (r *UserRoutes) SetupRoute() {
 	r.AddRoutes([]Route{
 		Route{
-			"HelloWorld",
+			"get user",
 			//You can handle more than just GET requests here, but for this tutorial we'll just do GETs
 			[]string{"GET"},
-			"/hello",
+			"/users/{key}",
 			// We defined HelloWorldHandler in Part1
-			&ContextedHandler{&server, controller.CreateUser},
-			"user:CreateUser",
+			&ContextedHandler{&server, controller.GetUser},
 		},
 		Route{
-			"GoodbyeWorld",
+			"get users",
 			[]string{"GET"},
-			"/goodbye",
+			"/users",
+			// GoodbyeWorldHandler is defined outside the gist :)
+			&ContextedHandler{&server, controller.GetUsers},
+		},
+		Route{
+			"create user",
+			[]string{"POST"},
+			"/users",
 			// GoodbyeWorldHandler is defined outside the gist :)
 			&ContextedHandler{&server, controller.CreateUser},
-			"user:CreateUser",
 		}})
 }
