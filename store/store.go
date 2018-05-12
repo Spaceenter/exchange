@@ -3,8 +3,6 @@ package store
 import (
 	"database/sql"
 	"time"
-
-	_ "github.com/go-sql-driver/mysql"
 )
 
 type Interface interface {
