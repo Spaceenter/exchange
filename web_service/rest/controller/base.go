@@ -1,24 +1,14 @@
 package controller
 
-type ApiBaseInterface struct {
+// RequestInfo request information versioning controller and support mutiple protocals
+type RequestInfo struct {
+	Protocal   string //pbuf, json etc.
+	APIVersion string //used for backward compatibility
 }
 
-type ApiBase struct {
-	protocalType string //pbuf, json etc.
-	apiVersion   string //used for backward compatibility
-}
+//Query url query
+type Query map[string]string
 
-// 	/**
-// 	 * Provider route handler to handle cases for different controller exceptions.
-// 	 *
-// 	 * @param  string $method Method name for callback
-// 	 * @param  array  $args   Request arguments
-// 	 * @return string         Encoded response
-// 	 *
-// 	 * @internal A few notes here:
-// 	 *     - Make sure the callback always RETURNS a values
-// 	 *     - Make sure to use full namespaces as the code is executed outside this namespace
-// 	 */
 // 	public function ExceptionRouteHandler($method, $args)
 // 	{
 // 		$format = $this->protocol_format_;

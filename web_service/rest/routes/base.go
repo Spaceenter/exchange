@@ -1,11 +1,13 @@
 package routes
 
 import (
-	"fmt"
+	"io"
 	"log"
 	"net/http"
 
 	"github.com/CatOrTiger/exchange/web_service/rest"
+	"github.com/CatOrTiger/exchange/web_service/rest/controller"
+
 	"github.com/CatOrTiger/exchange/web_service/rest/middleware"
 	"github.com/gorilla/mux"
 )
@@ -65,76 +67,34 @@ func InitRouter(c rest.WebService) *mux.Router {
 	//Check all routes to make sure the users are properly authenticated
 	muxRouter.Use(middleware.Authenticate)
 	// muxRouter.Use(middleware.SetContentTypeText)
-
 	return muxRouter
 }
 
 //ContextedHandler is a wrapper to provide AppContext to our Handlers
 type ContextedHandler struct {
 	server      *rest.WebService
-	FactoryFunc func(apiVersion string, protocal string) interface{}
-	//ContextedHandlerFunc is the interface which our Handlers will implement
-	ContextedHandlerFunc func(*rest.WebService, http.ResponseWriter, *http.Request) (int, error)
+	ProcessFunc func(*rest.WebService, *controller.RequestInfo, controller.Query, io.ReadCloser) (*controller.Response, error)
 }
 
-type RequestObject struct {
-	Name  string
-	Value int
-}
-
-type testInterface interface {
-}
-
+// ServeHTTP ...
 func (handler *ContextedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// here should be checked authentication ok.
-
+	//TODO
+	//here should be checked authentication ok.
 	//parse the input header
 	//parse the input body
 	//parse the queries
-
-	//get request body depens on `get post put`.
-	// test := controller.UsersController
-	// type := reflect.TypeOf(testInterface)
-
-	vars := mux.Vars(r)
-
-	for _, v := range vars {
-		println(v)
-	}
-
-	println(r.Body)
-
-	for _, h := range r.Header {
-		println(h)
-	}
-
-	// m := controller.UsersController{}
-	// meth := reflect.ValueOf(m).MethodByName("CreateUser")
-	// meth.Call(nil)
-
 	//need a factory to create correct controller.
-
 	//need a binding object pass it to api controller
-	status, err := handler.ContextedHandlerFunc(handler.server, w, r)
+	info := &controller.RequestInfo{
+		Protocal:   "json", // change to enum
+		APIVersion: "v1",   // change to enum
+	}
+
+	status, err := handler.ProcessFunc(handler.server, info, mux.Vars(r), r.Body)
 	if err != nil {
 		log.Printf("HTTP %d: %q", status, err)
 		switch status {
 		// TODO you can handle any error that a router might return here.
-		// I use SendGrid to send an email anytime a 503 occurs :)z
 		}
 	}
-}
-
-//HelloWorldHandler just prints Hello World on a GET request
-func HelloWorldHandler(s *rest.WebService, res http.ResponseWriter, req *http.Request) (int, error) {
-	//So in this handler we now have the context provided
-	fmt.Fprint(res, "Hello World")
-	return http.StatusOK, nil
-}
-
-// GoodbyeWorldHandler ...
-func GoodbyeWorldHandler(s *rest.WebService, res http.ResponseWriter, req *http.Request) (int, error) {
-	//So in this handler we now have the context provided
-	fmt.Fprint(res, "Hello World 1")
-	return http.StatusOK, nil
 }

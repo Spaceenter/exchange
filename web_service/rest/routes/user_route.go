@@ -1,6 +1,6 @@
 package routes
 
-import controller "github.com/CatOrTiger/exchange/web_service/rest/api_controller"
+import controller "github.com/CatOrTiger/exchange/web_service/rest/controller"
 
 // UserRoutes ...
 type UserRoutes struct {
@@ -16,7 +16,7 @@ func (r *UserRoutes) SetupRoute() {
 			[]string{"GET"},
 			"/hello",
 			// We defined HelloWorldHandler in Part1
-			&ContextedHandler{&server, controller.UserControllerFactory, HelloWorldHandler},
+			&ContextedHandler{&server, controller.CreateUser},
 			"user:CreateUser",
 		},
 		Route{
@@ -24,7 +24,7 @@ func (r *UserRoutes) SetupRoute() {
 			[]string{"GET"},
 			"/goodbye",
 			// GoodbyeWorldHandler is defined outside the gist :)
-			&ContextedHandler{&server, controller.UserControllerFactory, GoodbyeWorldHandler},
+			&ContextedHandler{&server, controller.CreateUser},
 			"user:CreateUser",
 		}})
 }
